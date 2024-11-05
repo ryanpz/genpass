@@ -1,24 +1,56 @@
 const std = @import("std");
+const words = @import("words.zig").words;
+
+const NUM_PASSPHRASE_WORDS = 6;
+const DELIMITER = "-";
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer std.debug.assert(gpa.deinit() == .ok);
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
+    var passphrase = std.ArrayList(u8).init(allocator);
+    defer passphrase.deinit();
+
+    const rng = Rng.init(std.crypto.random);
+
+    var i: u8 = 0;
+    while (i < NUM_PASSPHRASE_WORDS) : (i += 1) {
+        const chosen_word = words[rng.gen(words.len - 1)];
+        const formatted = try formatWord(allocator, rng, chosen_word);
+        defer allocator.free(formatted);
+        try passphrase.writer().print("{s}{s}", .{ formatted, if (i == NUM_PASSPHRASE_WORDS - 1) "\n" else DELIMITER });
+    }
+
     const stdout_file = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // don't forget to flush!
+    try stdout.print("{s}", .{passphrase.items});
+    try bw.flush();
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+/// Returns the word formatted for the passphrase.
+///
+/// Form: `Capitalizedword<n>`, where 0 <= n <= 9
+///
+/// The caller owns the formatted word's memory.
+pub fn formatWord(allocator: std.mem.Allocator, rng: Rng, word: []const u8) ![]u8 {
+    const word_capitalized = try allocator.dupe(u8, word);
+    defer allocator.free(word_capitalized);
+    word_capitalized[0] = std.ascii.toUpper(word_capitalized[0]);
+
+    return std.fmt.allocPrint(allocator, "{s}{d}", .{ word_capitalized, rng.gen(9) });
 }
+
+const Rng = struct {
+    r: std.Random,
+
+    pub fn gen(self: Rng, up_to: u32) u32 {
+        return self.r.intRangeAtMost(u32, 0, up_to);
+    }
+
+    pub fn init(rand: std.Random) Rng {
+        return Rng{ .r = rand };
+    }
+};
