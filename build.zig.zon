@@ -1,6 +1,6 @@
 .{
     .name = .genpass,
-    .version = "0.0.0",
+    .version = "1.0.0",
     .fingerprint = 0x4272f1e82e001cfa,
     .minimum_zig_version = "0.14.0",
     .paths = .{
