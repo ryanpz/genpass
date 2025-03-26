@@ -1,15 +1,27 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const native_os = builtin.os.tag;
+
 const words = @import("words.zig").words;
 
 const NUM_PASSPHRASE_WORDS = 6;
 const DELIMITER = "-";
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer std.debug.assert(gpa.deinit() == .ok);
+var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
-    var passphrase = std.ArrayList(u8).init(allocator);
+pub fn main() !void {
+    const gpa, const is_debug = gpa: {
+        if (native_os == .wasi) break :gpa .{ std.heap.wasm_allocator, false };
+        break :gpa switch (builtin.mode) {
+            .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
+            .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
+        };
+    };
+    defer if (is_debug) {
+        _ = debug_allocator.deinit();
+    };
+
+    var passphrase = std.ArrayList(u8).init(gpa);
     defer passphrase.deinit();
 
     const rng = Rng.init(std.crypto.random);
@@ -17,8 +29,8 @@ pub fn main() !void {
     var i: u8 = 0;
     while (i < NUM_PASSPHRASE_WORDS) : (i += 1) {
         const chosen_word = words[rng.gen(words.len - 1)];
-        const formatted = try formatWord(allocator, rng, chosen_word);
-        defer allocator.free(formatted);
+        const formatted = try formatWord(gpa, rng, chosen_word);
+        defer gpa.free(formatted);
         try passphrase.writer().print("{s}{s}", .{ formatted, if (i == NUM_PASSPHRASE_WORDS - 1) "\n" else DELIMITER });
     }
 
