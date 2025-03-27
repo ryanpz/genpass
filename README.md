@@ -18,7 +18,10 @@ SYNOPSIS
 OPTIONS
     -n NUM_WORDS
         Output a passphrase that is `NUM_WORDS` words long (max
-        255, defaults to 6)
+        255, defaults to 6).
+
+    -h
+        Print the help output for genpass.
 ```
 
 ## Building

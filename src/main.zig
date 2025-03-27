@@ -38,6 +38,12 @@ pub fn main() !void {
         return;
     };
 
+    if (opts.help) {
+        try print_usage(std.fs.path.basename(argv[0]), stderr);
+        try bwe.flush();
+        return;
+    }
+
     var passphrase = std.ArrayList(u8).init(gpa);
     defer passphrase.deinit();
 
@@ -57,6 +63,7 @@ pub fn main() !void {
 
 const Opts = struct {
     num_words: u8 = NUM_PASSPHRASE_WORDS,
+    help: bool = false,
 };
 
 const OptParseError = error{ MissingArgs, InvalidArgs };
@@ -72,7 +79,10 @@ fn print_usage(prog_name: []const u8, writer: anytype) !void {
         \\OPTIONS
         \\    -n NUM_WORDS
         \\        Output a passphrase that is `NUM_WORDS` words long (max
-        \\        255, defaults to 6)
+        \\        255, defaults to 6).
+        \\
+        \\    -h
+        \\        Print the help output for {0s}.
         \\
     , .{prog_name});
 }
@@ -83,17 +93,24 @@ fn getOpts(argv: [][:0]u8, err_writer: anytype) !Opts {
 
     var optind: usize = 1;
     while (optind < argv.len and argv[optind][0] == '-') {
-        if (std.mem.eql(u8, argv[optind], "-n")) {
+        const opt = argv[optind];
+
+        if (std.mem.eql(u8, opt, "-h")) {
+            opts.help = true;
+            break;
+        } else if (std.mem.eql(u8, opt, "-n")) {
             if (optind + 1 >= argv.len) {
+                try err_writer.print("error: option requires an argument: {s}\n\n", .{opt});
                 return error.MissingArgs;
             }
             optind += 1;
-            opts.num_words = std.fmt.parseInt(u8, argv[optind], 10) catch {
-                try err_writer.print("error: invalid passphrase word length: '{s}'\n\n", .{argv[optind]});
+            const optarg = argv[optind];
+            opts.num_words = std.fmt.parseInt(u8, optarg, 10) catch {
+                try err_writer.print("error: invalid passphrase word length: '{s}'\n\n", .{optarg});
                 return error.InvalidArgs;
             };
         } else {
-            try err_writer.print("error: illegal option: {s}\n\n", .{argv[optind]});
+            try err_writer.print("error: illegal option: {s}\n\n", .{opt});
             return error.InvalidArgs;
         }
         optind += 1;
