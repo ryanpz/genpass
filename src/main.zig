@@ -21,25 +21,85 @@ pub fn main() !void {
         _ = debug_allocator.deinit();
     };
 
+    const argv = try std.process.argsAlloc(gpa);
+    defer std.process.argsFree(gpa, argv);
+
+    const stdout_file = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout_file);
+    const stdout = bw.writer();
+
+    const stderr_file = std.io.getStdErr().writer();
+    var bwe = std.io.bufferedWriter(stderr_file);
+    const stderr = bwe.writer();
+
+    const opts = getOpts(argv, stderr) catch {
+        try print_usage(std.fs.path.basename(argv[0]), stderr);
+        try bwe.flush();
+        return;
+    };
+
     var passphrase = std.ArrayList(u8).init(gpa);
     defer passphrase.deinit();
 
     const rng = Rng.init(std.crypto.random);
 
     var i: u8 = 0;
-    while (i < NUM_PASSPHRASE_WORDS) : (i += 1) {
+    while (i < opts.num_words) : (i += 1) {
         const chosen_word = words[rng.gen(words.len - 1)];
         const formatted = try formatWord(gpa, rng, chosen_word);
         defer gpa.free(formatted);
-        try passphrase.writer().print("{s}{s}", .{ formatted, if (i == NUM_PASSPHRASE_WORDS - 1) "\n" else DELIMITER });
+        try passphrase.writer().print("{s}{s}", .{ formatted, if (i == opts.num_words - 1) "\n" else DELIMITER });
     }
-
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
 
     try stdout.print("{s}", .{passphrase.items});
     try bw.flush();
+}
+
+const Opts = struct {
+    num_words: u8 = NUM_PASSPHRASE_WORDS,
+};
+
+const OptParseError = error{ MissingArgs, InvalidArgs };
+
+fn print_usage(prog_name: []const u8, writer: anytype) !void {
+    try writer.print(
+        \\NAME
+        \\    {0s} - generate a random passphrase
+        \\
+        \\SYNOPSIS
+        \\    {0s} [OPTIONS...]
+        \\
+        \\OPTIONS
+        \\    -n NUM_WORDS
+        \\        Output a passphrase that is `NUM_WORDS` words long (max
+        \\        255, defaults to 6)
+        \\
+    , .{prog_name});
+}
+
+/// Parses runtime arguments for POSIX-style short options.
+fn getOpts(argv: [][:0]u8, err_writer: anytype) !Opts {
+    var opts = Opts{};
+
+    var optind: usize = 1;
+    while (optind < argv.len and argv[optind][0] == '-') {
+        if (std.mem.eql(u8, argv[optind], "-n")) {
+            if (optind + 1 >= argv.len) {
+                return error.MissingArgs;
+            }
+            optind += 1;
+            opts.num_words = std.fmt.parseInt(u8, argv[optind], 10) catch {
+                try err_writer.print("error: invalid passphrase word length: '{s}'\n\n", .{argv[optind]});
+                return error.InvalidArgs;
+            };
+        } else {
+            try err_writer.print("error: illegal option: {s}\n\n", .{argv[optind]});
+            return error.InvalidArgs;
+        }
+        optind += 1;
+    }
+
+    return opts;
 }
 
 /// Returns the word formatted for the passphrase.
