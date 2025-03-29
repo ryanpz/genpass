@@ -36,17 +36,15 @@ OPTIONS
  * `build`: build the release version
  * `run`: build and run the debug version
  * `test`: run all tests
- * `codegen-wordlist`: generate zig code representing [wordlist.txt](./data/wordlist.txt) (see below)
 
 ### Configuring the Word List
 
 To configure the list of words genpass pulls from:
 
  1. replace the contents of [wordlist.txt](./data/wordlist.txt) with your list of newline-separated words
- 2. run `make codegen-wordlist`
- 3. rebuild with `make build` or `make run`
+ 2. rebuild with `make build` or `make run`
 
-Note: `codegen-wordlist` embeds the word list into the executable, so `wordlist.txt` isn't required for the compiled program to run.
+Note: the word list is embedded into the executable, so `wordlist.txt` isn't required for the compiled program to run.
 
 ## License
 

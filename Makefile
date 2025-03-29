@@ -13,7 +13,3 @@ run:
 .PHONY: test
 test:
 	zig build test
-
-.PHONY: codegen-wordlist
-codegen-wordlist:
-	./scripts/codegen-wordlist -o $(GENERATED_WORDLIST_ZIGFILE) $(WORDLIST)

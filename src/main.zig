@@ -2,7 +2,10 @@ const std = @import("std");
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
 
-const words = @import("words.zig").words;
+const words_data: struct {
+    words: []const []const u8,
+} = @import("gen/words.zon");
+const words = words_data.words;
 
 const NUM_PASSPHRASE_WORDS = 6;
 const DELIMITER = "-";
