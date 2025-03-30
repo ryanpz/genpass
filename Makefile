@@ -1,6 +1,4 @@
 BUILDMODE ?= fast
-WORDLIST ?= ./data/wordlist.txt
-GENERATED_WORDLIST_ZIGFILE ?= ./src/words.zig
 
 .PHONY: build
 build:
