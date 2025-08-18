@@ -3,22 +3,9 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-
-    const gen_exe = b.addExecutable(.{
-        .name = "gen_wordlist",
-        .root_source_file = b.path("src/gen_wordlist.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const run_gen_exe = b.addRunArtifact(gen_exe);
-    run_gen_exe.addFileArg(b.path("data/wordlist.txt"));
-    const generated_words_file = run_gen_exe.addOutputFileArg("words.zon");
-
-    const gen_write_files = b.addUpdateSourceFiles();
-    gen_write_files.addCopyFileToSource(generated_words_file, "src/gen/words.zon");
-
-    run_gen_exe.step.dependOn(&gen_exe.step);
+    const words = parseWordlist(b, "data/wordlist.txt") catch |err| {
+        std.debug.panic("Failed to parse wordlist: {}\n", .{err});
+    };
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -26,12 +13,14 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const options = b.addOptions();
+    options.addOption([]const []const u8, "words", words);
+    exe_mod.addOptions("build_config", options);
+
     const exe = b.addExecutable(.{
         .name = "genpass",
         .root_module = exe_mod,
     });
-
-    exe.step.dependOn(&gen_write_files.step);
 
     b.installArtifact(exe);
 
@@ -45,13 +34,22 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+}
 
-    const exe_unit_tests = b.addTest(.{
-        .root_module = exe_mod,
-    });
+pub fn parseWordlist(b: *std.Build, input_filepath: []const u8) ![]const []const u8 {
+    var words = std.ArrayList([]const u8).init(b.allocator);
 
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
+    var word_list = try std.fs.cwd().openFile(input_filepath, .{});
+    defer word_list.close();
+    var br = std.io.bufferedReader(word_list.reader());
+    var reader = br.reader();
 
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_exe_unit_tests.step);
+    var buf: [1024]u8 = undefined;
+    while (try reader.readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
+        if (trimmed.len > 0) {
+            try words.append(b.dupe(trimmed));
+        }
+    }
+    return words.toOwnedSlice();
 }
