@@ -34,13 +34,13 @@ pub fn main() !void {
     const stderr = bwe.writer();
 
     const opts = getOpts(argv, stderr) catch {
-        try print_usage(std.fs.path.basename(argv[0]), stderr);
+        try printUsage(std.fs.path.basename(argv[0]), stderr);
         try bwe.flush();
         return;
     };
 
     if (opts.help) {
-        try print_usage(std.fs.path.basename(argv[0]), stderr);
+        try printUsage(std.fs.path.basename(argv[0]), stderr);
         try bwe.flush();
         return;
     }
@@ -69,7 +69,7 @@ const Opts = struct {
 
 const OptParseError = error{ MissingArgs, InvalidArgs };
 
-fn print_usage(prog_name: []const u8, writer: anytype) !void {
+fn printUsage(prog_name: []const u8, writer: anytype) !void {
     try writer.print(
         \\NAME
         \\    {0s} - generate a random passphrase
