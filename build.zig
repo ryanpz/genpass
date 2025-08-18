@@ -43,25 +43,30 @@ const WordList = struct {
 };
 
 pub fn parseWordlist(b: *std.Build, input_filepath: []const u8) !WordList {
-    var words = std.ArrayList([]const u8).init(b.allocator);
+    var words = std.ArrayList([]const u8).empty;
     var max_len: usize = 0;
 
-    var word_list = try std.fs.cwd().openFile(input_filepath, .{});
-    defer word_list.close();
-    var br = std.io.bufferedReader(word_list.reader());
-    var reader = br.reader();
+    var word_list_file = try std.fs.cwd().openFile(input_filepath, .{});
+    defer word_list_file.close();
 
     var buf: [1024]u8 = undefined;
-    while (try reader.readUntilDelimiterOrEof(&buf, '\n')) |line| {
+    var fr: std.fs.File.Reader = .init(word_list_file, &buf);
+    var reader = &fr.interface;
+
+    while (reader.takeDelimiterExclusive('\n')) |line| {
+        if (line.len == 0) continue;
         const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
         if (trimmed.len > 0) {
             if (trimmed.len > max_len) max_len = trimmed.len;
-            try words.append(b.dupe(trimmed));
+            try words.append(b.allocator, b.dupe(trimmed));
         }
+    } else |err| switch (err) {
+        error.EndOfStream => {},
+        else => |e| return e,
     }
 
     return .{
-        .items = try words.toOwnedSlice(),
+        .items = try words.toOwnedSlice(b.allocator),
         .max_word_len = max_len,
     };
 }

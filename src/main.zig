@@ -26,28 +26,28 @@ pub fn main() !void {
     const argv = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, argv);
 
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
 
-    const stderr_file = std.io.getStdErr().writer();
-    var bwe = std.io.bufferedWriter(stderr_file);
-    const stderr = bwe.writer();
+    var stderr_buffer: [4096]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    const stderr = &stderr_writer.interface;
 
     const opts = getOpts(argv, stderr) catch {
         try printUsage(std.fs.path.basename(argv[0]), stderr);
-        try bwe.flush();
+        try stderr.flush();
         return;
     };
 
     if (opts.help) {
         try printUsage(std.fs.path.basename(argv[0]), stderr);
-        try bwe.flush();
+        try stderr.flush();
         return;
     }
 
-    var passphrase = std.ArrayList(u8).init(gpa);
-    defer passphrase.deinit();
+    var passphrase = std.ArrayList(u8).empty;
+    defer passphrase.deinit(gpa);
 
     const rng = Rng.init(std.crypto.random);
 
@@ -56,11 +56,11 @@ pub fn main() !void {
     while (i < opts.num_words) : (i += 1) {
         const chosen_word = words[rng.gen(words.len - 1)];
         const formatted = formatWord(&word_buffer, rng, chosen_word);
-        try passphrase.writer().print("{s}{s}", .{ formatted, if (i == opts.num_words - 1) "\n" else DELIMITER });
+        try passphrase.writer(gpa).print("{s}{s}", .{ formatted, if (i == opts.num_words - 1) "\n" else DELIMITER });
     }
 
     try stdout.print("{s}", .{passphrase.items});
-    try bw.flush();
+    try stdout.flush();
 }
 
 const Opts = struct {
@@ -70,7 +70,7 @@ const Opts = struct {
 
 const OptParseError = error{ MissingArgs, InvalidArgs };
 
-fn printUsage(prog_name: []const u8, writer: anytype) !void {
+fn printUsage(prog_name: []const u8, writer: *std.Io.Writer) !void {
     try writer.print(
         \\NAME
         \\    {0s} - generate a random passphrase
@@ -90,7 +90,7 @@ fn printUsage(prog_name: []const u8, writer: anytype) !void {
 }
 
 /// Parses runtime arguments for POSIX-style short options.
-fn getOpts(argv: [][:0]u8, err_writer: anytype) !Opts {
+fn getOpts(argv: [][:0]u8, err_writer: *std.Io.Writer) !Opts {
     var opts = Opts{};
 
     var optind: usize = 1;
