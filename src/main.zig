@@ -4,6 +4,7 @@ const native_os = builtin.os.tag;
 const build_config = @import("build_config");
 
 const words = build_config.words;
+const max_word_len = build_config.max_word_len;
 
 const NUM_PASSPHRASE_WORDS = 6;
 const DELIMITER = "-";
@@ -50,11 +51,11 @@ pub fn main() !void {
 
     const rng = Rng.init(std.crypto.random);
 
+    var word_buffer: [max_word_len + 1]u8 = undefined;
     var i: u8 = 0;
     while (i < opts.num_words) : (i += 1) {
         const chosen_word = words[rng.gen(words.len - 1)];
-        const formatted = try formatWord(gpa, rng, chosen_word);
-        defer gpa.free(formatted);
+        const formatted = formatWord(&word_buffer, rng, chosen_word);
         try passphrase.writer().print("{s}{s}", .{ formatted, if (i == opts.num_words - 1) "\n" else DELIMITER });
     }
 
@@ -120,17 +121,16 @@ fn getOpts(argv: [][:0]u8, err_writer: anytype) !Opts {
     return opts;
 }
 
-/// Returns the word formatted for the passphrase.
+/// Formats the word for the passphrase using the provided buffer.
 ///
 /// Form: `Capitalizedword<n>`, where 0 <= n <= 9
 ///
-/// The caller owns the formatted word's memory.
-pub fn formatWord(allocator: std.mem.Allocator, rng: Rng, word: []const u8) ![]u8 {
-    const word_capitalized = try allocator.dupe(u8, word);
-    defer allocator.free(word_capitalized);
-    word_capitalized[0] = std.ascii.toUpper(word_capitalized[0]);
-
-    return std.fmt.allocPrint(allocator, "{s}{d}", .{ word_capitalized, rng.gen(9) });
+/// Returns a slice of the buffer containing the formatted word.
+fn formatWord(buffer: []u8, rng: Rng, word: []const u8) []u8 {
+    @memcpy(buffer[0..word.len], word);
+    buffer[0] = std.ascii.toUpper(buffer[0]);
+    buffer[word.len] = '0' + @as(u8, @intCast(rng.gen(9)));
+    return buffer[0 .. word.len + 1];
 }
 
 const Rng = struct {

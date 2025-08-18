@@ -3,7 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const words = parseWordlist(b, "data/wordlist.txt") catch |err| {
+    const wordlist = parseWordlist(b, "data/wordlist.txt") catch |err| {
         std.debug.panic("Failed to parse wordlist: {}\n", .{err});
     };
 
@@ -14,7 +14,8 @@ pub fn build(b: *std.Build) void {
     });
 
     const options = b.addOptions();
-    options.addOption([]const []const u8, "words", words);
+    options.addOption([]const []const u8, "words", wordlist.items);
+    options.addOption(usize, "max_word_len", wordlist.max_word_len);
     exe_mod.addOptions("build_config", options);
 
     const exe = b.addExecutable(.{
@@ -36,8 +37,14 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 }
 
-pub fn parseWordlist(b: *std.Build, input_filepath: []const u8) ![]const []const u8 {
+const WordList = struct {
+    items: []const []const u8,
+    max_word_len: usize,
+};
+
+pub fn parseWordlist(b: *std.Build, input_filepath: []const u8) !WordList {
     var words = std.ArrayList([]const u8).init(b.allocator);
+    var max_len: usize = 0;
 
     var word_list = try std.fs.cwd().openFile(input_filepath, .{});
     defer word_list.close();
@@ -48,8 +55,13 @@ pub fn parseWordlist(b: *std.Build, input_filepath: []const u8) ![]const []const
     while (try reader.readUntilDelimiterOrEof(&buf, '\n')) |line| {
         const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
         if (trimmed.len > 0) {
+            if (trimmed.len > max_len) max_len = trimmed.len;
             try words.append(b.dupe(trimmed));
         }
     }
-    return words.toOwnedSlice();
+
+    return .{
+        .items = try words.toOwnedSlice(),
+        .max_word_len = max_len,
+    };
 }
