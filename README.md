@@ -13,7 +13,12 @@ NAME
     genpass - generate a random passphrase
 
 SYNOPSIS
+    genpass [COMMAND]
     genpass [OPTIONS...]
+
+COMMANDS
+    version
+        Print the version of genpass.
 
 OPTIONS
     -n NUM_WORDS

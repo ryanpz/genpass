@@ -1,4 +1,5 @@
 const std = @import("std");
+const zon = @import("build.zig.zon");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -14,6 +15,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const options = b.addOptions();
+    options.addOption([]const u8, "version", zon.version);
     options.addOption([]const []const u8, "words", wordlist.items);
     options.addOption(usize, "max_word_len", wordlist.max_word_len);
     exe_mod.addOptions("build_config", options);

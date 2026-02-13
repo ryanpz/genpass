@@ -34,7 +34,7 @@ pub fn main() !void {
     var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
     const stderr = &stderr_writer.interface;
 
-    const opts = getOpts(argv, stderr) catch {
+    const opts = parseArgs(argv, stderr) catch {
         try printUsage(std.fs.path.basename(argv[0]), stderr);
         try stderr.flush();
         return;
@@ -43,6 +43,12 @@ pub fn main() !void {
     if (opts.help) {
         try printUsage(std.fs.path.basename(argv[0]), stderr);
         try stderr.flush();
+        return;
+    }
+
+    if (opts.version) {
+        try stdout.print("{s}\n", .{build_config.version});
+        try stdout.flush();
         return;
     }
 
@@ -66,6 +72,7 @@ pub fn main() !void {
 const Opts = struct {
     num_words: u8 = NUM_PASSPHRASE_WORDS,
     help: bool = false,
+    version: bool = false,
 };
 
 const OptParseError = error{ MissingArgs, InvalidArgs };
@@ -76,7 +83,12 @@ fn printUsage(prog_name: []const u8, writer: *std.Io.Writer) !void {
         \\    {0s} - generate a random passphrase
         \\
         \\SYNOPSIS
+        \\    {0s} [COMMAND]
         \\    {0s} [OPTIONS...]
+        \\
+        \\COMMANDS
+        \\    version
+        \\        Print the version of {0s}.
         \\
         \\OPTIONS
         \\    -n NUM_WORDS
@@ -89,32 +101,44 @@ fn printUsage(prog_name: []const u8, writer: *std.Io.Writer) !void {
     , .{prog_name});
 }
 
-/// Parses runtime arguments for POSIX-style short options.
-fn getOpts(argv: [][:0]u8, err_writer: *std.Io.Writer) !Opts {
+/// Parses runtime arguments for commands and POSIX-style short options.
+fn parseArgs(argv: [][:0]u8, err_writer: *std.Io.Writer) !Opts {
     var opts = Opts{};
 
     var optind: usize = 1;
-    while (optind < argv.len and argv[optind][0] == '-') {
+    while (optind < argv.len) {
         const opt = argv[optind];
 
-        if (std.mem.eql(u8, opt, "-h")) {
-            opts.help = true;
-            break;
-        } else if (std.mem.eql(u8, opt, "-n")) {
-            if (optind + 1 >= argv.len) {
-                try err_writer.print("error: option requires an argument: {s}\n\n", .{opt});
-                return error.MissingArgs;
-            }
-            optind += 1;
-            const optarg = argv[optind];
-            opts.num_words = std.fmt.parseInt(u8, optarg, 10) catch {
-                try err_writer.print("error: invalid passphrase word length: '{s}'\n\n", .{optarg});
+        if (opt[0] != '-') {
+            // commands
+            if (std.mem.eql(u8, opt, "version")) {
+                return .{ .version = true };
+            } else {
+                try err_writer.print("error: unknown command: {s}\n\n", .{opt});
                 return error.InvalidArgs;
-            };
+            }
         } else {
-            try err_writer.print("error: illegal option: {s}\n\n", .{opt});
-            return error.InvalidArgs;
+            // options
+            if (std.mem.eql(u8, opt, "-h")) {
+                opts.help = true;
+                break;
+            } else if (std.mem.eql(u8, opt, "-n")) {
+                if (optind + 1 >= argv.len) {
+                    try err_writer.print("error: option requires an argument: {s}\n\n", .{opt});
+                    return error.MissingArgs;
+                }
+                optind += 1;
+                const optarg = argv[optind];
+                opts.num_words = std.fmt.parseInt(u8, optarg, 10) catch {
+                    try err_writer.print("error: invalid passphrase word length: '{s}'\n\n", .{optarg});
+                    return error.InvalidArgs;
+                };
+            } else {
+                try err_writer.print("error: illegal option: {s}\n\n", .{opt});
+                return error.InvalidArgs;
+            }
         }
+
         optind += 1;
     }
 
