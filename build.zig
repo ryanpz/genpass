@@ -53,16 +53,13 @@ pub fn parseWordlist(b: *std.Build, input_filepath: []const u8) !WordList {
     var fr: std.fs.File.Reader = .init(word_list_file, &buf);
     var reader = &fr.interface;
 
-    while (reader.takeDelimiterExclusive('\n')) |line| {
+    while (try reader.takeDelimiter('\n')) |line| {
         if (line.len == 0) continue;
         const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
         if (trimmed.len > 0) {
             if (trimmed.len > max_len) max_len = trimmed.len;
             try words.append(b.allocator, b.dupe(trimmed));
         }
-    } else |err| switch (err) {
-        error.EndOfStream => {},
-        else => |e| return e,
     }
 
     return .{
