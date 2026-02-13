@@ -37,7 +37,7 @@ pub fn main() !void {
     const opts = parseArgs(argv, stderr) catch {
         try printUsage(std.fs.path.basename(argv[0]), stderr);
         try stderr.flush();
-        return;
+        std.process.exit(1);
     };
 
     if (opts.help) {
